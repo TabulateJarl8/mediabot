@@ -209,7 +209,7 @@ async def speakPDF(ctx, message_id: str, forceOCR=False, language='en', tld='com
 				await progressMsg.edit(content=progressMsg.content + "\nConverting text to audio...")
 				try:
 					speech = gTTS(text=pdfText, lang=language, tld=tld, slow=False)
-				except ValueError:
+				except (ValueError, gtts.tts.gTTSError):
 					speech = gTTS(text=pdfText, lang='en', slow=False)
 				with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
 					speech.save(f.name)
@@ -262,7 +262,7 @@ async def speakImage(ctx, message_id: str, index_of_attachment=0, tld='com', lan
 				await progressMsg.edit(content=progressMsg.content + "\nConverting text to audio...")
 				try:
 					speech = gTTS(text=imageText, lang=language, tld=tld, slow=False)
-				except ValueError:
+				except (ValueError, gtts.tts.gTTSError):
 					speech = gTTS(text=imageText, lang='en', slow=False)
 				with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
 					speech.save(f.name)
@@ -310,7 +310,7 @@ async def speakText(ctx, *, args):
 	await ctx.send("Converting text to audio...")
 	try:
 		speech = gTTS(text=text, lang=language, tld=tld, slow=False)
-	except ValueError:
+	except (ValueError, gtts.tts.gTTSError):
 		speech = gTTS(text=text, lang='en', slow=False)
 
 	with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
@@ -341,7 +341,7 @@ async def speakMessage(ctx, message_id: str, language='en', tld='com'):
 	await ctx.send("Converting text to audio...")
 	try:
 		speech = gTTS(text=msg.content, lang=language, tld=tld, slow=False)
-	except ValueError:
+	except (ValueError, gtts.tts.gTTSError):
 		speech = gTTS(text=msg.content, lang='en', slow=False)
 
 	with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
