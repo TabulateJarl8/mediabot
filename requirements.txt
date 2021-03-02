@@ -1,2 +1,4 @@
 discord.py>=1.6.0
 audioread>=2.1.9
+pymupdf>=1.18.9
+gTTS>=2.2.2
