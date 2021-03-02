@@ -1,4 +1,9 @@
 discord.py>=1.6.0
-audioread>=2.1.9
+mutagen>=1.45.1
 pymupdf>=1.18.9
 gTTS>=2.2.2
+pytesseract>=0.3.7
+opencv-python>=4.5.1.48
+pdf2image>=1.14.0
+Pillow>=8.1.0
+requests>=2.24.0

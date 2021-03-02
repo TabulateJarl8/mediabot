@@ -6,12 +6,18 @@ import datetime
 import requests
 from urllib.parse import urlparse
 import discord
-import audioread
+import mutagen
 import time
 import fitz
 from gtts import gTTS
 import atexit
 import shutil
+import cv2
+from PIL import Image
+from pdf2image import convert_from_path
+import pytesseract
+import numpy
+import traceback
 
 startupTime = datetime.datetime.utcnow()
 workingDir = os.path.abspath(os.path.dirname(__file__))
@@ -28,6 +34,11 @@ class InvalidAudioFormatError(commands.CommandError):
 		super().__init__(*args, **kwargs)
 
 class InvalidPDFFormatError(commands.CommandError):
+	def __init__(self, filename, *args, **kwargs):
+		self.filename = filename
+		super().__init__(*args, **kwargs)
+
+class InvalidImageFormatError(commands.CommandError):
 	def __init__(self, filename, *args, **kwargs):
 		self.filename = filename
 		super().__init__(*args, **kwargs)
@@ -83,17 +94,42 @@ async def playAudioFile(ctx, channel, filename):
 	vc.play(discord.FFmpegPCMAudio(source=filename))
 	# Sleep while audio is playing.
 	while vc.is_playing():
-		with audioread.audio_open(filename) as f:
-			time.sleep(f.duration)
+		audiofile = mutagen.File(filename)
+		time.sleep(audiofile.info.length)
 		await vc.disconnect()
 	# Delete command after the audio is done playing.
 	# await ctx.message.delete()
 
-def getTextFromPDF(path):
-	text = ""
-	doc = fitz.open(path)
-	for page in doc:
-		text += page.getText()
+def getTextFromImageObject(image):
+	# Convert to CV2 format
+	image = image.convert("RGB")
+	image = numpy.array(image)
+	image = image[:, :, ::-1].copy()
+	# gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+	# blur = cv2.GaussianBlur(gray, (3, 3), 0)
+	# thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+
+	# kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
+	# opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
+	# invert = 255 - opening
+	data = pytesseract.image_to_string(image, lang='eng', config='--psm 6')
+	return data
+
+
+def getTextFromPDF(path, ocr):
+	if ocr == True:
+		text = ""
+		doc = convert_from_path(path)
+		for page_number, page_data in enumerate(doc):
+			text += getTextFromImageObject(page_data)
+	else:
+		doc = fitz.open(path)
+		for page in doc:
+			text += page.getText()
+		if text == "":
+			doc = convert_from_path(path)
+			for page_number, page_data in enumerate(doc):
+				text += getTextFromImageObject(Image.fromarray(page_data))
 	return text
 
 # End Utility Functions
@@ -138,10 +174,11 @@ async def play_error(ctx, error):
 	elif isinstance(error, NotInChannelError):
 		await ctx.send(error.mention + " is not currently in a voice channel")
 	else:
+		traceback.print_exc()
 		await ctx.send(str(type(error).__name__) + ": " + str(error))
 
 @bot.command(pass_context=True, brief="PDF TTS", description="Join your current voice channel and read the text found in the specified PDF aloud")
-async def speakPDF(ctx, message_id: str, language='en', index_of_attachment=0):
+async def speakPDF(ctx, message_id: str, forceOCR=False, language='en', index_of_attachment=0):
 	try:
 		channel = ctx.author.voice.channel
 	except Exception:
@@ -161,7 +198,7 @@ async def speakPDF(ctx, message_id: str, language='en', index_of_attachment=0):
 					with open(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path)), 'wb') as f:
 						f.write(file)
 					await progressMsg.edit(content=progressMsg.content + "\nExtracting text from PDF...")
-					pdfText = getTextFromPDF(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path)))
+					pdfText = getTextFromPDF(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path)), ocr=forceOCR)
 					await progressMsg.edit(content=progressMsg.content + "\nConverting text to audio...")
 					try:
 						speech = gTTS(text=pdfText, lang=language, slow=False)
@@ -189,6 +226,59 @@ async def speakPDF_error(ctx, error):
 	elif isinstance(error, NotInChannelError):
 		await ctx.send(error.mention + " is not currently in a voice channel")
 	else:
+		traceback.print_exc()
+		await ctx.send(str(type(error).__name__) + ": " + str(error))
+
+@bot.command(pass_context=True, brief="Image TTS", description="Join your current voice channel and read the text from the specified image aloud")
+async def speakImage(ctx, message_id: str, index_of_attachment=0, language='en'):
+	try:
+		channel = ctx.author.voice.channel
+	except Exception:
+		raise NotInChannelError(ctx.author.id)
+	msg = await ctx.fetch_message(message_id.split("-")[-1])
+	if msg.attachments:
+		if len(msg.attachments) >= index_of_attachment + 1:
+			url = msg.attachments[index_of_attachment].url
+			content_type = requests.head(url).headers['Content-Type']
+			if not 'image' in content_type:
+				raise InvalidImageFormatError(os.path.basename(urlparse(url).path))
+			else:
+				progressMsg = await ctx.send("Downloading `" + os.path.basename(urlparse(url).path) + "`...")
+				# Valid audio file, download and play it
+				try:
+					file = requests.get(url, allow_redirects=True).content
+					with open(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path)), 'wb') as f:
+						f.write(file)
+					await progressMsg.edit(content=progressMsg.content + "\nExtracting text from Image...")
+					imageText = getTextFromImageObject(Image.open(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path))))
+					await progressMsg.edit(content=progressMsg.content + "\nConverting text to audio...")
+					try:
+						speech = gTTS(text=imageText, lang=language, slow=False)
+					except ValueError:
+						speech = gTTS(text=imageText, lang='en', slow=False)
+
+					speech.save(os.path.join(workingDir, "downloaded", os.path.splitext(os.path.basename(urlparse(url).path))[0] + ".mp3"))
+					await playAudioFile(ctx, channel, os.path.join(workingDir, "downloaded", os.path.splitext(os.path.basename(urlparse(url).path))[0] + ".mp3"))
+				finally:
+					if os.path.isfile(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path))):
+						os.remove(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path)))
+					if os.path.isfile(os.path.join(workingDir, "downloaded", os.path.splitext(os.path.basename(urlparse(url).path))[0] + ".mp3")):
+						os.remove(os.path.join(workingDir, "downloaded", os.path.splitext(os.path.basename(urlparse(url).path))[0] + ".mp3"))
+		else:
+			raise NoAttachmentError
+	else:
+		raise NoAttachmentError
+
+@play.error
+async def play_error(ctx, error):
+	if isinstance(error, InvalidImageFormatError):
+		await ctx.send("`" + error.filename + "` is not a valid image")
+	elif isinstance(error, NoAttachmentError):
+		await ctx.send("No attachment for specified message")
+	elif isinstance(error, NotInChannelError):
+		await ctx.send(error.mention + " is not currently in a voice channel")
+	else:
+		traceback.print_exc()
 		await ctx.send(str(type(error).__name__) + ": " + str(error))
 
 # End Core Bot Commands
