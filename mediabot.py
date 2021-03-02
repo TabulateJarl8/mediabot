@@ -10,7 +10,6 @@ import mutagen
 import time
 import fitz
 from gtts import gTTS
-import atexit
 import shutil
 import cv2
 from PIL import Image
@@ -18,15 +17,12 @@ from pdf2image import convert_from_path
 import pytesseract
 import numpy
 import traceback
+import tempfile
 
 startupTime = datetime.datetime.utcnow()
 workingDir = os.path.abspath(os.path.dirname(__file__))
 
 bot = commands.Bot(command_prefix="|")
-
-@atexit.register
-def removeDownloaded():
-	shutil.rmtree(os.path.join(workingDir, "downloaded"))
 
 class InvalidAudioFormatError(commands.CommandError):
 	def __init__(self, filename, *args, **kwargs):
@@ -49,6 +45,10 @@ class NotInChannelError(commands.CommandError):
 		super().__init__(*args, **kwargs)
 
 class NoAttachmentError(commands.CommandError):
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+
+class MessageNotFoundError(commands.CommandError):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 
@@ -112,7 +112,7 @@ def getTextFromImageObject(image):
 	# kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
 	# opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
 	# invert = 255 - opening
-	data = pytesseract.image_to_string(image, lang='eng', config='--psm 6')
+	data = pytesseract.image_to_string(image, lang='eng')
 	return data
 
 
@@ -123,6 +123,7 @@ def getTextFromPDF(path, ocr):
 		for page_number, page_data in enumerate(doc):
 			text += getTextFromImageObject(page_data)
 	else:
+		text = ""
 		doc = fitz.open(path)
 		for page in doc:
 			text += page.getText()
@@ -142,7 +143,10 @@ async def play(ctx, message_id: str, index_of_attachment=0):
 		channel = ctx.author.voice.channel
 	except Exception:
 		raise NotInChannelError(ctx.author.id)
-	msg = await ctx.fetch_message(message_id.split("-")[-1])
+	try:
+		msg = await ctx.fetch_message(message_id.split("-")[-1])
+	except Exception:
+		raise MessageNotFoundError
 	if msg.attachments:
 		if len(msg.attachments) >= index_of_attachment + 1:
 			url = msg.attachments[index_of_attachment].url
@@ -150,16 +154,13 @@ async def play(ctx, message_id: str, index_of_attachment=0):
 			if not 'audio' in content_type:
 				raise InvalidAudioFormatError(os.path.basename(urlparse(url).path))
 			else:
-				await ctx.send("Downloading `" + os.path.basename(urlparse(url).path) + "`...")
-				# Valid audio file, download and play it
-				try:
+				with tempfile.NamedTemporaryFile(suffix=os.path.splitext(os.path.basename(urlparse(url).path))[1]) as f:
+					await ctx.send("Downloading `" + os.path.basename(urlparse(url).path) + "`...")
+					# Valid audio file, download and play it
 					file = requests.get(url, allow_redirects=True).content
-					with open(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path)), 'wb') as f:
-						f.write(file)
-					await playAudioFile(ctx, channel, os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path)))
-				finally:
-					if os.path.isfile(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path))):
-						os.remove(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path)))
+					f.write(file)
+					f.seek(0)
+					await playAudioFile(ctx, channel, f.name)
 		else:
 			raise NoAttachmentError
 	else:
@@ -173,6 +174,8 @@ async def play_error(ctx, error):
 		await ctx.send("No attachment for specified message")
 	elif isinstance(error, NotInChannelError):
 		await ctx.send(error.mention + " is not currently in a voice channel")
+	elif isinstance(error, MessageNotFoundError):
+		await ctx.send("Message not found")
 	else:
 		traceback.print_exc()
 		await ctx.send(str(type(error).__name__) + ": " + str(error))
@@ -183,7 +186,10 @@ async def speakPDF(ctx, message_id: str, forceOCR=False, language='en', index_of
 		channel = ctx.author.voice.channel
 	except Exception:
 		raise NotInChannelError(ctx.author.id)
-	msg = await ctx.fetch_message(message_id.split("-")[-1])
+	try:
+		msg = await ctx.fetch_message(message_id.split("-")[-1])
+	except Exception:
+		raise MessageNotFoundError
 	if msg.attachments:
 		if len(msg.attachments) >= index_of_attachment + 1:
 			url = msg.attachments[index_of_attachment].url
@@ -191,27 +197,23 @@ async def speakPDF(ctx, message_id: str, forceOCR=False, language='en', index_of
 			if content_type != 'application/pdf':
 				raise InvalidPDFFormatError(os.path.basename(urlparse(url).path))
 			else:
-				progressMsg = await ctx.send("Downloading `" + os.path.basename(urlparse(url).path) + "`...")
-				# Valid audio file, download and play it
-				try:
+				with tempfile.NamedTemporaryFile(suffix=os.path.splitext(os.path.basename(urlparse(url).path))[1]) as f:
+					progressMsg = await ctx.send("Downloading `" + os.path.basename(urlparse(url).path) + "`...")
+					# Valid audio file, download and play it
 					file = requests.get(url, allow_redirects=True).content
-					with open(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path)), 'wb') as f:
-						f.write(file)
+					f.write(file)
+					f.seek(0)
 					await progressMsg.edit(content=progressMsg.content + "\nExtracting text from PDF...")
-					pdfText = getTextFromPDF(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path)), ocr=forceOCR)
-					await progressMsg.edit(content=progressMsg.content + "\nConverting text to audio...")
-					try:
-						speech = gTTS(text=pdfText, lang=language, slow=False)
-					except ValueError:
-						speech = gTTS(text=pdfText, lang='en', slow=False)
-
-					speech.save(os.path.join(workingDir, "downloaded", os.path.splitext(os.path.basename(urlparse(url).path))[0] + ".mp3"))
-					await playAudioFile(ctx, channel, os.path.join(workingDir, "downloaded", os.path.splitext(os.path.basename(urlparse(url).path))[0] + ".mp3"))
-				finally:
-					if os.path.isfile(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path))):
-						os.remove(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path)))
-					if os.path.isfile(os.path.join(workingDir, "downloaded", os.path.splitext(os.path.basename(urlparse(url).path))[0] + ".mp3")):
-						os.remove(os.path.join(workingDir, "downloaded", os.path.splitext(os.path.basename(urlparse(url).path))[0] + ".mp3"))
+					pdfText = getTextFromPDF(f.name, ocr=forceOCR)
+				await progressMsg.edit(content=progressMsg.content + "\nConverting text to audio...")
+				try:
+					speech = gTTS(text=pdfText, lang=language, slow=False)
+				except ValueError:
+					speech = gTTS(text=pdfText, lang='en', slow=False)
+				with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
+					speech.save(f.name)
+					f.seek(0)
+					await playAudioFile(ctx, channel, f.name)
 		else:
 			raise NoAttachmentError
 	else:
@@ -225,6 +227,8 @@ async def speakPDF_error(ctx, error):
 		await ctx.send("No attachment for specified message")
 	elif isinstance(error, NotInChannelError):
 		await ctx.send(error.mention + " is not currently in a voice channel")
+	elif isinstance(error, MessageNotFoundError):
+		await ctx.send("Message not found")
 	else:
 		traceback.print_exc()
 		await ctx.send(str(type(error).__name__) + ": " + str(error))
@@ -235,7 +239,10 @@ async def speakImage(ctx, message_id: str, index_of_attachment=0, language='en')
 		channel = ctx.author.voice.channel
 	except Exception:
 		raise NotInChannelError(ctx.author.id)
-	msg = await ctx.fetch_message(message_id.split("-")[-1])
+	try:
+		msg = await ctx.fetch_message(message_id.split("-")[-1])
+	except Exception:
+		raise MessageNotFoundError
 	if msg.attachments:
 		if len(msg.attachments) >= index_of_attachment + 1:
 			url = msg.attachments[index_of_attachment].url
@@ -243,27 +250,23 @@ async def speakImage(ctx, message_id: str, index_of_attachment=0, language='en')
 			if not 'image' in content_type:
 				raise InvalidImageFormatError(os.path.basename(urlparse(url).path))
 			else:
-				progressMsg = await ctx.send("Downloading `" + os.path.basename(urlparse(url).path) + "`...")
-				# Valid audio file, download and play it
-				try:
+				with tempfile.NamedTemporaryFile(suffix=os.path.splitext(os.path.basename(urlparse(url).path))[1]) as f:
+					progressMsg = await ctx.send("Downloading `" + os.path.basename(urlparse(url).path) + "`...")
+					# Valid audio file, download and play it
 					file = requests.get(url, allow_redirects=True).content
-					with open(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path)), 'wb') as f:
-						f.write(file)
+					f.write(file)
+					f.seek(0)
 					await progressMsg.edit(content=progressMsg.content + "\nExtracting text from Image...")
-					imageText = getTextFromImageObject(Image.open(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path))))
-					await progressMsg.edit(content=progressMsg.content + "\nConverting text to audio...")
-					try:
-						speech = gTTS(text=imageText, lang=language, slow=False)
-					except ValueError:
-						speech = gTTS(text=imageText, lang='en', slow=False)
-
-					speech.save(os.path.join(workingDir, "downloaded", os.path.splitext(os.path.basename(urlparse(url).path))[0] + ".mp3"))
-					await playAudioFile(ctx, channel, os.path.join(workingDir, "downloaded", os.path.splitext(os.path.basename(urlparse(url).path))[0] + ".mp3"))
-				finally:
-					if os.path.isfile(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path))):
-						os.remove(os.path.join(workingDir, "downloaded", os.path.basename(urlparse(url).path)))
-					if os.path.isfile(os.path.join(workingDir, "downloaded", os.path.splitext(os.path.basename(urlparse(url).path))[0] + ".mp3")):
-						os.remove(os.path.join(workingDir, "downloaded", os.path.splitext(os.path.basename(urlparse(url).path))[0] + ".mp3"))
+					imageText = getTextFromImageObject(Image.open(f.name))
+				await progressMsg.edit(content=progressMsg.content + "\nConverting text to audio...")
+				try:
+					speech = gTTS(text=imageText, lang=language, slow=False)
+				except ValueError:
+					speech = gTTS(text=imageText, lang='en', slow=False)
+				with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
+					speech.save(f.name)
+					f.seek(0)
+					await playAudioFile(ctx, channel, f.name)
 		else:
 			raise NoAttachmentError
 	else:
@@ -277,13 +280,72 @@ async def play_error(ctx, error):
 		await ctx.send("No attachment for specified message")
 	elif isinstance(error, NotInChannelError):
 		await ctx.send(error.mention + " is not currently in a voice channel")
+	elif isinstance(error, MessageNotFoundError):
+		await ctx.send("Message not found")
+	else:
+		traceback.print_exc()
+		await ctx.send(str(type(error).__name__) + ": " + str(error))
+
+@bot.command(pass_context=True, brief="Speak Text", description="Join your current voice channel and read the text after the command")
+async def speakText(ctx, *, text, language='en'):
+	try:
+		channel = ctx.author.voice.channel
+	except Exception:
+		raise NotInChannelError(ctx.author.id)
+
+	await ctx.send("Converting text to audio...")
+	try:
+		speech = gTTS(text=text, lang=language, slow=False)
+	except ValueError:
+		speech = gTTS(text=text, lang='en', slow=False)
+
+	with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
+		speech.save(f.name)
+		await playAudioFile(ctx, channel, f.name)
+
+
+@speakText.error
+async def speakText_error(ctx, error):
+	if isinstance(error, NotInChannelError):
+		await ctx.send(error.mention + " is not currently in a voice channel")
+	else:
+		traceback.print_exc()
+		await ctx.send(str(type(error).__name__) + ": " + str(error))
+
+@bot.command(pass_context=True, brief="Speak Message", description="Join your current voice channel and read the specified message aloud")
+async def speakMessage(ctx, message_id: str, language='en'):
+	try:
+		channel = ctx.author.voice.channel
+	except Exception:
+		raise NotInChannelError(ctx.author.id)
+
+	try:
+		msg = await ctx.fetch_message(message_id.split("-")[-1])
+	except Exception:
+		raise MessageNotFoundError
+
+	await ctx.send("Converting text to audio...")
+	try:
+		speech = gTTS(text=msg.content, lang=language, slow=False)
+	except ValueError:
+		speech = gTTS(text=msg.content, lang='en', slow=False)
+
+	with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
+		speech.save(f.name)
+		await playAudioFile(ctx, channel, f.name)
+
+
+@speakMessage.error
+async def speakMessage_error(ctx, error):
+	if isinstance(error, NotInChannelError):
+		await ctx.send(error.mention + " is not currently in a voice channel")
+	elif isinstance(error, MessageNotFoundError):
+		await ctx.send("Message not found")
 	else:
 		traceback.print_exc()
 		await ctx.send(str(type(error).__name__) + ": " + str(error))
 
 # End Core Bot Commands
-if not os.path.exists("downloaded"):
-	os.mkdir("downloaded")
 with open(os.path.join(workingDir, "secure", "client_secret.txt")) as f:
 	secret = f.read().rstrip()
 bot.run(secret)
