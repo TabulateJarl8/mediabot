@@ -148,12 +148,12 @@ async def play(ctx, message_id: str, index_of_attachment=0):
 		msg = message_id.split("-")
 		if len(msg) >= 2:
 			try:
-				channel = bot.get_channel(msg[0])
-				msg = await channel.fetch_message(msg[-1])
+				message_channel = bot.get_channel(int(msg[0]))
+				msg = await message_channel.fetch_message(int(msg[-1]))
 			except Exception:
-				msg = await ctx.fetch_message(msg[-1])
+				msg = await ctx.fetch_message(int(msg[-1]))
 		else:
-			msg = await ctx.fetch_message(msg[-1])
+			msg = await ctx.fetch_message(int(msg[-1]))
 	except Exception:
 		raise MessageNotFoundError
 	if msg.attachments:
@@ -199,12 +199,12 @@ async def speakPDF(ctx, message_id: str, forceOCR=False, language='en', tld='com
 		msg = message_id.split("-")
 		if len(msg) >= 2:
 			try:
-				channel = bot.get_channel(msg[0])
-				msg = await channel.fetch_message(msg[-1])
+				message_channel = bot.get_channel(int(msg[0]))
+				msg = await message_channel.fetch_message(int(msg[-1]))
 			except Exception:
-				msg = await ctx.fetch_message(msg[-1])
+				msg = await ctx.fetch_message(int(msg[-1]))
 		else:
-			msg = await ctx.fetch_message(msg[-1])
+			msg = await ctx.fetch_message(int(msg[-1]))
 	except Exception:
 		raise MessageNotFoundError
 	if msg.attachments:
@@ -260,12 +260,12 @@ async def speakImage(ctx, message_id: str, index_of_attachment=0, tld='com', lan
 		msg = message_id.split("-")
 		if len(msg) >= 2:
 			try:
-				channel = bot.get_channel(msg[0])
-				msg = await channel.fetch_message(msg[-1])
+				message_channel = bot.get_channel(int(msg[0]))
+				msg = await message_channel.fetch_message(int(msg[-1]))
 			except Exception:
-				msg = await ctx.fetch_message(msg[-1])
+				msg = await ctx.fetch_message(int(msg[-1]))
 		else:
-			msg = await ctx.fetch_message(msg[-1])
+			msg = await ctx.fetch_message(int(msg[-1]))
 	except Exception:
 		raise MessageNotFoundError
 	if msg.attachments:
@@ -361,12 +361,12 @@ async def speakMessage(ctx, message_id: str, language='en', tld='com'):
 		msg = message_id.split("-")
 		if len(msg) >= 2:
 			try:
-				channel = bot.get_channel(msg[0])
-				msg = await channel.fetch_message(msg[-1])
+				message_channel = bot.get_channel(int(msg[0]))
+				msg = await message_channel.fetch_message(int(msg[-1]))
 			except Exception:
-				msg = await ctx.fetch_message(msg[-1])
+				msg = await ctx.fetch_message(int(msg[-1]))
 		else:
-			msg = await ctx.fetch_message(msg[-1])
+			msg = await ctx.fetch_message(int(msg[-1]))
 	except Exception:
 		raise MessageNotFoundError
 
