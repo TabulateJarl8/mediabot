@@ -309,7 +309,7 @@ async def speakText(ctx, *, args):
 
 	await ctx.send("Converting text to audio...")
 	try:
-		speech = gTTS(text=text, lang=language, tld=tld slow=False)
+		speech = gTTS(text=text, lang=language, tld=tld, slow=False)
 	except ValueError:
 		speech = gTTS(text=text, lang='en', slow=False)
 
