@@ -53,6 +53,10 @@ class MessageNotFoundError(commands.CommandError):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 
+class NoTextFoundError(commands.CommandError):
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+
 def restart_program():
 	os.chdir(workingDir)
 	print("Restart")
@@ -96,7 +100,7 @@ async def playAudioFile(ctx, channel, filename):
 	# Sleep while audio is playing.
 	while vc.is_playing():
 		audiofile = mutagen.File(filename)
-		time.sleep(audiofile.info.length)
+		time.sleep(audiofile.info.length + 3)
 		await vc.disconnect()
 	# Delete command after the audio is done playing.
 	# await ctx.message.delete()
@@ -227,6 +231,8 @@ async def speakPDF(ctx, message_id: str, forceOCR=False, language='en', tld='com
 					speech = gTTS(text=pdfText, lang=language, tld=tld, slow=False)
 				except (ValueError, gtts.tts.gTTSError):
 					speech = gTTS(text=pdfText, lang='en', slow=False)
+				except AssertionError:
+					raise NoTextFoundError
 				with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
 					speech.save(f.name)
 					f.seek(0)
@@ -246,6 +252,8 @@ async def speakPDF_error(ctx, error):
 		await ctx.send(error.mention + " is not currently in a voice channel")
 	elif isinstance(error, MessageNotFoundError):
 		await ctx.send("Message not found")
+	elif isinstance(error, NoTextFoundError):
+		await ctx.send("No text found in PDF")
 	else:
 		traceback.print_exc()
 		await ctx.send(str(type(error).__name__) + ": " + str(error))
@@ -288,6 +296,8 @@ async def speakImage(ctx, message_id: str, index_of_attachment=0, tld='com', lan
 					speech = gTTS(text=imageText, lang=language, tld=tld, slow=False)
 				except (ValueError, gtts.tts.gTTSError):
 					speech = gTTS(text=imageText, lang='en', slow=False)
+				except AssertionError:
+					raise NoTextFoundError
 				with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
 					speech.save(f.name)
 					f.seek(0)
@@ -305,6 +315,8 @@ async def play_error(ctx, error):
 		await ctx.send("No attachment for specified message")
 	elif isinstance(error, NotInChannelError):
 		await ctx.send(error.mention + " is not currently in a voice channel")
+	elif isinstance(error, NoTextFoundError):
+		await ctx.send("No text found in image")
 	elif isinstance(error, MessageNotFoundError):
 		await ctx.send("Message not found")
 	else:
@@ -336,6 +348,8 @@ async def speakText(ctx, *, args):
 		speech = gTTS(text=text, lang=language, tld=tld, slow=False)
 	except (ValueError, gtts.tts.gTTSError):
 		speech = gTTS(text=text, lang='en', slow=False)
+	except AssertionError:
+		raise NoTextFoundError
 
 	with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
 		speech.save(f.name)
@@ -346,6 +360,8 @@ async def speakText(ctx, *, args):
 async def speakText_error(ctx, error):
 	if isinstance(error, NotInChannelError):
 		await ctx.send(error.mention + " is not currently in a voice channel")
+	elif isinstance(error, NoTextFoundError):
+		await ctx.send("No text provided")
 	else:
 		traceback.print_exc()
 		await ctx.send(str(type(error).__name__) + ": " + str(error))
@@ -375,6 +391,8 @@ async def speakMessage(ctx, message_id: str, language='en', tld='com'):
 		speech = gTTS(text=msg.content, lang=language, tld=tld, slow=False)
 	except (ValueError, gtts.tts.gTTSError):
 		speech = gTTS(text=msg.content, lang='en', slow=False)
+	except AssertionError:
+		raise NoTextFoundError
 
 	with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
 		speech.save(f.name)
@@ -385,6 +403,8 @@ async def speakMessage(ctx, message_id: str, language='en', tld='com'):
 async def speakMessage_error(ctx, error):
 	if isinstance(error, NotInChannelError):
 		await ctx.send(error.mention + " is not currently in a voice channel")
+	elif isinstance(error, NoTextFoundError):
+		await ctx.send("No text found in message")
 	elif isinstance(error, MessageNotFoundError):
 		await ctx.send("Message not found")
 	else:
