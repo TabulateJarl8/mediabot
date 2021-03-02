@@ -231,10 +231,11 @@ async def speakPDF(ctx, message_id: str, forceOCR=False, language='en', tld='com
 					speech = gTTS(text=pdfText, lang=language, tld=tld, slow=False)
 				except (ValueError, gtts.tts.gTTSError):
 					speech = gTTS(text=pdfText, lang='en', slow=False)
-				except AssertionError:
-					raise NoTextFoundError
 				with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
-					speech.save(f.name)
+					try:
+						speech.save(f.name)
+					except AssertionError:
+						raise NoTextFoundError
 					f.seek(0)
 					await playAudioFile(ctx, channel, f.name)
 		else:
@@ -296,10 +297,12 @@ async def speakImage(ctx, message_id: str, index_of_attachment=0, tld='com', lan
 					speech = gTTS(text=imageText, lang=language, tld=tld, slow=False)
 				except (ValueError, gtts.tts.gTTSError):
 					speech = gTTS(text=imageText, lang='en', slow=False)
-				except AssertionError:
-					raise NoTextFoundError
+
 				with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
-					speech.save(f.name)
+					try:
+						speech.save(f.name)
+					except AssertionError:
+						raise NoTextFoundError
 					f.seek(0)
 					await playAudioFile(ctx, channel, f.name)
 		else:
@@ -307,8 +310,8 @@ async def speakImage(ctx, message_id: str, index_of_attachment=0, tld='com', lan
 	else:
 		raise NoAttachmentError
 
-@play.error
-async def play_error(ctx, error):
+@speakImage.error
+async def speakImage_error(ctx, error):
 	if isinstance(error, InvalidImageFormatError):
 		await ctx.send("`" + error.filename + "` is not a valid image")
 	elif isinstance(error, NoAttachmentError):
@@ -348,11 +351,12 @@ async def speakText(ctx, *, args):
 		speech = gTTS(text=text, lang=language, tld=tld, slow=False)
 	except (ValueError, gtts.tts.gTTSError):
 		speech = gTTS(text=text, lang='en', slow=False)
-	except AssertionError:
-		raise NoTextFoundError
 
 	with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
-		speech.save(f.name)
+		try:
+			speech.save(f.name)
+		except AssertionError:
+			raise NoTextFoundError
 		await playAudioFile(ctx, channel, f.name)
 
 
@@ -391,11 +395,12 @@ async def speakMessage(ctx, message_id: str, language='en', tld='com'):
 		speech = gTTS(text=msg.content, lang=language, tld=tld, slow=False)
 	except (ValueError, gtts.tts.gTTSError):
 		speech = gTTS(text=msg.content, lang='en', slow=False)
-	except AssertionError:
-		raise NoTextFoundError
 
 	with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
-		speech.save(f.name)
+		try:
+			speech.save(f.name)
+		except AssertionError:
+			raise NoTextFoundError
 		await playAudioFile(ctx, channel, f.name)
 
 
