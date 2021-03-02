@@ -182,7 +182,7 @@ async def play_error(ctx, error):
 		await ctx.send(str(type(error).__name__) + ": " + str(error))
 
 @bot.command(pass_context=True, brief="PDF TTS", description="Join your current voice channel and read the text found in the specified PDF aloud")
-async def speakPDF(ctx, message_id: str, forceOCR=False, language='en', index_of_attachment=0):
+async def speakPDF(ctx, message_id: str, forceOCR=False, language='en', tld='com', index_of_attachment=0):
 	try:
 		channel = ctx.author.voice.channel
 	except Exception:
@@ -208,7 +208,7 @@ async def speakPDF(ctx, message_id: str, forceOCR=False, language='en', index_of
 					pdfText = getTextFromPDF(f.name, ocr=forceOCR)
 				await progressMsg.edit(content=progressMsg.content + "\nConverting text to audio...")
 				try:
-					speech = gTTS(text=pdfText, lang=language, slow=False)
+					speech = gTTS(text=pdfText, lang=language, tld=tld, slow=False)
 				except ValueError:
 					speech = gTTS(text=pdfText, lang='en', slow=False)
 				with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
@@ -235,7 +235,7 @@ async def speakPDF_error(ctx, error):
 		await ctx.send(str(type(error).__name__) + ": " + str(error))
 
 @bot.command(pass_context=True, brief="Image TTS", description="Join your current voice channel and read the text from the specified image aloud")
-async def speakImage(ctx, message_id: str, index_of_attachment=0, language='en'):
+async def speakImage(ctx, message_id: str, index_of_attachment=0, tld='com', language='en'):
 	try:
 		channel = ctx.author.voice.channel
 	except Exception:
@@ -261,7 +261,7 @@ async def speakImage(ctx, message_id: str, index_of_attachment=0, language='en')
 					imageText = getTextFromImageObject(Image.open(f.name))
 				await progressMsg.edit(content=progressMsg.content + "\nConverting text to audio...")
 				try:
-					speech = gTTS(text=imageText, lang=language, slow=False)
+					speech = gTTS(text=imageText, lang=language, tld=tld, slow=False)
 				except ValueError:
 					speech = gTTS(text=imageText, lang='en', slow=False)
 				with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
@@ -287,9 +287,10 @@ async def play_error(ctx, error):
 		traceback.print_exc()
 		await ctx.send(str(type(error).__name__) + ": " + str(error))
 
-@bot.command(pass_context=True, brief="Speak Text", description="Join your current voice channel and read the text after the command. Specify --lang for a language. Default en")
+@bot.command(pass_context=True, brief="Speak Text", description="Join your current voice channel and read the text after the command. Specify --lang for a language, or --tld with a TLD for an accent. Default en, com")
 async def speakText(ctx, *, args):
 	language='en'
+	tld='com'
 	args = shlex.split(args)
 	words = []
 	for index, item in enumerate(args):
@@ -299,6 +300,8 @@ async def speakText(ctx, *, args):
 	args = {k.strip('-'): True if v.startswith('-') else v for k,v in zip(args, args[1:]+["--"]) if k.startswith('-')}
 	if 'lang' in args:
 		language = args['lang']
+	if 'tld' in args:
+		tld = args['tld']
 	try:
 		channel = ctx.author.voice.channel
 	except Exception:
@@ -306,7 +309,7 @@ async def speakText(ctx, *, args):
 
 	await ctx.send("Converting text to audio...")
 	try:
-		speech = gTTS(text=text, lang=language, slow=False)
+		speech = gTTS(text=text, lang=language, tld=tld slow=False)
 	except ValueError:
 		speech = gTTS(text=text, lang='en', slow=False)
 
@@ -324,7 +327,7 @@ async def speakText_error(ctx, error):
 		await ctx.send(str(type(error).__name__) + ": " + str(error))
 
 @bot.command(pass_context=True, brief="Speak Message", description="Join your current voice channel and read the specified message aloud")
-async def speakMessage(ctx, message_id: str, language='en'):
+async def speakMessage(ctx, message_id: str, language='en', tld='com'):
 	try:
 		channel = ctx.author.voice.channel
 	except Exception:
@@ -337,7 +340,7 @@ async def speakMessage(ctx, message_id: str, language='en'):
 
 	await ctx.send("Converting text to audio...")
 	try:
-		speech = gTTS(text=msg.content, lang=language, slow=False)
+		speech = gTTS(text=msg.content, lang=language, tld=tld, slow=False)
 	except ValueError:
 		speech = gTTS(text=msg.content, lang='en', slow=False)
 
