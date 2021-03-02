@@ -17,6 +17,7 @@ from pdf2image import convert_from_path
 import pytesseract
 import numpy
 import traceback
+import shlex
 import tempfile
 
 startupTime = datetime.datetime.utcnow()
@@ -286,8 +287,18 @@ async def play_error(ctx, error):
 		traceback.print_exc()
 		await ctx.send(str(type(error).__name__) + ": " + str(error))
 
-@bot.command(pass_context=True, brief="Speak Text", description="Join your current voice channel and read the text after the command")
-async def speakText(ctx, *, text, language='en'):
+@bot.command(pass_context=True, brief="Speak Text", description="Join your current voice channel and read the text after the command. Specify --lang for a language. Default en")
+async def speakText(ctx, *, args):
+	language='en'
+	args = shlex.split(args)
+	words = []
+	for index, item in enumerate(args):
+		if not item.startswith("--") and (index - 1 != -1 and not args[index - 1].startswith('--')) or index == 0:
+			words.append(item)
+	text = ' '.join(words)
+	args = {k.strip('-'): True if v.startswith('-') else v for k,v in zip(args, args[1:]+["--"]) if k.startswith('-')}
+	if 'lang' in args:
+		language = args['lang']
 	try:
 		channel = ctx.author.voice.channel
 	except Exception:
