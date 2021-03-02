@@ -145,7 +145,15 @@ async def play(ctx, message_id: str, index_of_attachment=0):
 	except Exception:
 		raise NotInChannelError(ctx.author.id)
 	try:
-		msg = await ctx.fetch_message(message_id.split("-")[-1])
+		msg = message_id.split("-")
+		if len(msg) >= 2:
+			try:
+				channel = bot.get_channel(msg[0])
+				msg = await channel.fetch_message(msg[-1])
+			except Exception:
+				msg = await ctx.fetch_message(msg[-1])
+		else:
+			msg = await ctx.fetch_message(msg[-1])
 	except Exception:
 		raise MessageNotFoundError
 	if msg.attachments:
@@ -188,7 +196,15 @@ async def speakPDF(ctx, message_id: str, forceOCR=False, language='en', tld='com
 	except Exception:
 		raise NotInChannelError(ctx.author.id)
 	try:
-		msg = await ctx.fetch_message(message_id.split("-")[-1])
+		msg = message_id.split("-")
+		if len(msg) >= 2:
+			try:
+				channel = bot.get_channel(msg[0])
+				msg = await channel.fetch_message(msg[-1])
+			except Exception:
+				msg = await ctx.fetch_message(msg[-1])
+		else:
+			msg = await ctx.fetch_message(msg[-1])
 	except Exception:
 		raise MessageNotFoundError
 	if msg.attachments:
@@ -241,7 +257,15 @@ async def speakImage(ctx, message_id: str, index_of_attachment=0, tld='com', lan
 	except Exception:
 		raise NotInChannelError(ctx.author.id)
 	try:
-		msg = await ctx.fetch_message(message_id.split("-")[-1])
+		msg = message_id.split("-")
+		if len(msg) >= 2:
+			try:
+				channel = bot.get_channel(msg[0])
+				msg = await channel.fetch_message(msg[-1])
+			except Exception:
+				msg = await ctx.fetch_message(msg[-1])
+		else:
+			msg = await ctx.fetch_message(msg[-1])
 	except Exception:
 		raise MessageNotFoundError
 	if msg.attachments:
@@ -334,7 +358,15 @@ async def speakMessage(ctx, message_id: str, language='en', tld='com'):
 		raise NotInChannelError(ctx.author.id)
 
 	try:
-		msg = await ctx.fetch_message(message_id.split("-")[-1])
+		msg = message_id.split("-")
+		if len(msg) >= 2:
+			try:
+				channel = bot.get_channel(msg[0])
+				msg = await channel.fetch_message(msg[-1])
+			except Exception:
+				msg = await ctx.fetch_message(msg[-1])
+		else:
+			msg = await ctx.fetch_message(msg[-1])
 	except Exception:
 		raise MessageNotFoundError
 
