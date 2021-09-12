@@ -6,7 +6,6 @@ import datetime
 import requests
 from urllib.parse import urlparse
 import discord
-import mutagen
 import time
 import fitz
 from gtts import gTTS
@@ -19,6 +18,7 @@ import numpy
 import traceback
 import shlex
 import tempfile
+import subprocess
 
 startupTime = datetime.datetime.utcnow()
 workingDir = os.path.abspath(os.path.dirname(__file__))
@@ -56,6 +56,23 @@ class MessageNotFoundError(commands.CommandError):
 class NoTextFoundError(commands.CommandError):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
+
+def get_audio_file_length(filename):
+	proc = subprocess.check_output(
+		[
+			'ffprobe',
+			'-i',
+			filename,
+			'-show_entries',
+			'format=duration',
+			'-v',
+			'quiet',
+			'-of',
+			'csv=p=0'
+		]
+	)
+
+	return float(proc.decode().strip())
 
 def restart_program():
 	os.chdir(workingDir)
@@ -99,8 +116,7 @@ async def playAudioFile(ctx, channel, filename):
 	vc.play(discord.FFmpegPCMAudio(source=filename))
 	# Sleep while audio is playing.
 	while vc.is_playing():
-		audiofile = mutagen.File(filename)
-		time.sleep(audiofile.info.length + 3)
+		time.sleep(get_audio_file_length(filename) + 3)
 		await vc.disconnect()
 	# Delete command after the audio is done playing.
 	# await ctx.message.delete()
