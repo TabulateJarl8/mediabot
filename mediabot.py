@@ -6,7 +6,6 @@ import datetime
 import requests
 from urllib.parse import urlparse
 import discord
-import time
 import fitz
 from gtts import gTTS
 import shutil
@@ -19,6 +18,7 @@ import traceback
 import shlex
 import tempfile
 import subprocess
+import asyncio
 
 startupTime = datetime.datetime.utcnow()
 workingDir = os.path.abspath(os.path.dirname(__file__))
@@ -113,11 +113,14 @@ async def status(ctx):
 async def playAudioFile(ctx, channel, filename):
 	# Gets voice channel of message author
 	vc = await channel.connect()
-	vc.play(discord.FFmpegPCMAudio(source=filename))
+	vc.play(discord.FFmpegPCMAudio(source=filename, options='-vn -v verbose'))
 	# Sleep while audio is playing.
 	while vc.is_playing():
-		time.sleep(get_audio_file_length(filename) + 3)
-		await vc.disconnect()
+		await asyncio.sleep(1)
+	#	time.sleep(get_audio_file_length(filename) + 3)
+	#	await vc.disconnect()
+	#time.sleep(get_audio_file_length(filename) + 3)
+	await vc.disconnect()
 	# Delete command after the audio is done playing.
 	# await ctx.message.delete()
 
